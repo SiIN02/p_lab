@@ -1,4 +1,3 @@
-# from http://wandlab.com
 
 from flask import Flask
 from flask import request

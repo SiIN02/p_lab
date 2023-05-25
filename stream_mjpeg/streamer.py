@@ -6,6 +6,15 @@ import numpy as np
 from threading import Thread
 from queue import Queue
 
+from keras.models import load_model
+import numpy as np
+
+import paho.mqtt.client as mqtt
+
+# Disable scientific notation for clarity
+np.set_printoptions(suppress=True)
+
+
 class Streamer :
     
     def __init__(self ):
@@ -14,6 +23,8 @@ class Streamer :
             cv2.ocl.setUseOpenCL(True)
         print('[wandlab] ', 'OpenCL : ', cv2.ocl.haveOpenCL())
             
+        np.set_printoptions(suppress=True)
+        
         self.capture = None
         self.thread = None
         self.width = 640
@@ -24,6 +35,10 @@ class Streamer :
         self.sec = 0
         self.Q = Queue(maxsize=128)
         self.started = False
+        self.model = load_model("keras_Model.h5", compile=False)
+
+        self.client = mqtt.Client()
+        self.client.connect('192.168.0.81', 1883)
         
     def run(self, src = 0 ) :
         
@@ -59,6 +74,26 @@ class Streamer :
                 
                 if grabbed : 
                     self.Q.put(frame)
+
+                image = cv2.resize(frame, (224, 224), interpolation=cv2.INTER_AREA)
+                image = np.asarray(image, dtype=np.float32).reshape(1, 224, 224, 3)
+
+                # Normalize the image array
+                image = (image / 127.5) - 1
+
+                # Predicts the model
+                prediction = self.model.predict(image)
+                index = np.argmax(prediction)
+                class_name = index
+                confidence_score = prediction[0][index]
+
+                # Print prediction and confidence score
+                print("Class:", class_name)
+                print("Confidence Score:", str(np.round(confidence_score * 100))[:-2], "%")
+
+                self.client.publish('facescore',str(np.round(confidence_score * 100))[:-2], 1)
+                self.client.publish('facenum',str(class_name), 1)
+                
                           
     def clear(self):
         
