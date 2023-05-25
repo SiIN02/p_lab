@@ -1,0 +1,58 @@
+import paho.mqtt.client as mqtt
+
+from time import time
+from time import strftime
+from time import localtime
+
+import cv2
+import numpy as np
+from urllib.request import urlopen
+
+name = ["유정훈", "박재선", "정성훈", "성명훈", "최우성"]
+cnt = 6
+time_ = strftime('%Y-%m-%d %H:%M:%S', localtime())#시간
+pre = 5
+
+url = "http://192.168.0.84:5000/stream" #CAM의 영상 스트리밍 주소
+stream = urlopen(url)
+buffer = b''
+
+def on_message(client, userdata, msg):
+    global cnt
+    cnt = int(msg.payload.decode("utf-8"))#판별값
+
+while True:
+    time_ = strftime('%Y-%m-%d %H:%M:%S', localtime())#현재시간
+
+    buffer += stream.read(4096)
+    head = buffer.find(b'\xff\xd8')
+    end = buffer.find(b'\xff\xd9')
+
+    client = mqtt.Client()
+    client1 = mqtt.Client()
+    client2 = mqtt.Client()
+    client.on_message = on_message
+    client.connect('localhost', 1883)
+    client1.connect('192.168.0.81', 1883)#보내는 주소
+    client2.connect('192.168.0.87', 1883)
+    client.loop_start()
+    client.subscribe('facenum', 1)#받기
+    client1.publish('facenum', cnt, 1)#보내기
+    client2.publish('facenum', cnt, 1)#보내기
+    client.loop_stop()
+
+    if head > -1 and end > -1:
+        jpg = buffer[head:end+2]
+        buffer = buffer[end+2:]
+        img = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        cv2.imshow("stream", img)#이미지 출력
+
+        if (cnt < 5 and (pre != cnt)):
+            cv2.imwrite('./'+time_+'.jpeg', img)#이미지 저장 주소
+            f = open("출입기록.txt", 'a')#txt기록
+            f.write(time_ + " " + name[cnt] + "\n")#txt내용
+            f.close()
+
+        cv2.waitKey(1)
+
+cv2.destroyAllWindows()
