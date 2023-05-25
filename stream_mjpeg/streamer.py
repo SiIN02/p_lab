@@ -13,7 +13,7 @@ import paho.mqtt.client as mqtt
 
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
-model = load_model("keras_Model.h5", compile=False)
+model = load_model("./keras_Model.h5", compile=False)
 
 
 class Streamer :
