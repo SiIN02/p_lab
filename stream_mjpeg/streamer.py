@@ -13,6 +13,7 @@ import paho.mqtt.client as mqtt
 
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
+model = load_model("keras_Model.h5", compile=False)
 
 
 class Streamer :
@@ -35,10 +36,7 @@ class Streamer :
         self.sec = 0
         self.Q = Queue(maxsize=128)
         self.started = False
-        self.model = load_model("keras_Model.h5", compile=False)
-
         self.client = mqtt.Client()
-        self.client.connect('192.168.0.81', 1883)
         
     def run(self, src = 0 ) :
         
@@ -82,7 +80,7 @@ class Streamer :
                 image = (image / 127.5) - 1
 
                 # Predicts the model
-                prediction = self.model.predict(image)
+                prediction = model.predict(image)
                 index = np.argmax(prediction)
                 class_name = index
                 confidence_score = prediction[0][index]
@@ -91,8 +89,11 @@ class Streamer :
                 print("Class:", class_name)
                 print("Confidence Score:", str(np.round(confidence_score * 100))[:-2], "%")
 
+                self.client.connect('192.168.0.83', 1883)
                 self.client.publish('facescore',str(np.round(confidence_score * 100))[:-2], 1)
                 self.client.publish('facenum',str(class_name), 1)
+                self.client.disconnect()
+
                 
                           
     def clear(self):
