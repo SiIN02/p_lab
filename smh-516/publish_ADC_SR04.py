@@ -36,7 +36,6 @@ board.set_pin_mode_analog_input(ANALOG_PIN)
 
 
 client = mqtt.Client()
-# 콜백 함수 설정 on_connect(브로커에 접속), on_disconnect(브로커에 접속중료), on_publish(메세지 발행)
 client.on_connect = on_connect
 client.on_disconnect = on_disconnect
 client.on_publish = on_publish
