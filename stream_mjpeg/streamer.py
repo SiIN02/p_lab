@@ -5,20 +5,29 @@ import platform
 import numpy as np
 from threading import Thread
 from queue import Queue
+from pymata4 import pymata4
 
 from keras.models import load_model
 import numpy as np
 
 import paho.mqtt.client as mqtt
 
+lastmsg = "init"
+
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
 model = load_model("./keras_Model.h5", compile=False)
 
+def on_message(client, userdata, message):
+    global lastmsg
+    lastmsg = str(message.payload.decode("utf-8"))
+    print("received message =",str(message.payload.decode("utf-8")))
 
 class Streamer :
     
-    def __init__(self ):
+    def __init__(self):
+
+        global lastmsg
         
         if cv2.ocl.haveOpenCL() :
             cv2.ocl.setUseOpenCL(True)
@@ -37,6 +46,12 @@ class Streamer :
         self.Q = Queue(maxsize=128)
         self.started = False
         self.client = mqtt.Client()
+        self.client.on_message = on_message
+        self.client.connect('192.168.0.83', 1883)
+        self.client.subscribe("switch")
+        self.client.loop_start()
+        self.board = pymata4.Pymata4()
+        self.board.set_pin_mode_digital_output(7)
         
     def run(self, src = 0 ) :
         
@@ -53,6 +68,8 @@ class Streamer :
             self.thread.start()
         
         self.started = True
+
+    
     
     def stop(self):
         
@@ -64,6 +81,7 @@ class Streamer :
             self.clear()
             
     def update(self):
+        global lastmsg
                     
         while True:
 
@@ -86,14 +104,27 @@ class Streamer :
                 confidence_score = prediction[0][index]
 
                 # Print prediction and confidence score
-                print("Class:", class_name)
-                print("Confidence Score:", str(np.round(confidence_score * 100))[:-2], "%")
+                #print("Class:", class_name)
+                #print("Confidence Score:", str(np.round(confidence_score * 100))[:-2], "%")
 
-                self.client.connect('192.168.0.83', 1883)
+                if(lastmsg == "init"):
+                    if class_name != 1:
+                        self.board.digital_write(7, 1)
+                    else:
+                        self.board.digital_write(7, 0)
+
+                
                 self.client.publish('facescore',str(np.round(confidence_score * 100))[:-2], 1)
                 self.client.publish('facenum',str(class_name), 1)
-                self.client.disconnect()
 
+                if (lastmsg=="on"):
+                    self.board.digital_write(7, 1)
+                
+                if (lastmsg=="off"):
+                    self.board.digital_write(7, 0)
+                
+                print(lastmsg)
+                
                 
                           
     def clear(self):
@@ -143,4 +174,5 @@ class Streamer :
                    
     def __exit__(self) :
         print( '* streamer class exit')
+        self.client.disconnect()
         self.capture.release()
